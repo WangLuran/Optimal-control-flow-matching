@@ -159,6 +159,9 @@ class clip_semantic_loss():
         clip_mode="ViT-B/32"
         self.interp_mode='bilinear'
         self.clip_model, _ = clip.load(clip_mode, device=device)
+        self.clip_model.eval()
+        for param in self.clip_model.parameters():
+            param.requires_grad = False
         self.clip_c = self.clip_model.logit_scale.exp()
         self.text_tok = clip.tokenize([text]).to(device)
         self.policy = 'color,translation,resize,cutout'

@@ -21,6 +21,7 @@ from RectifiedFlow.models.utils import get_model_fn
 from RectifiedFlow.models import utils as mutils
 
 from .flowgrad_utils import get_img, embed_to_latent, clip_semantic_loss, save_img, generate_traj, flowgrad_optimization
+from utils.dflow_sample import dflow_optimization
 
 FLAGS = flags.FLAGS
 
@@ -42,7 +43,7 @@ def generate_traj_oc(dynamic, z0, u, N):
     pred = dynamic(z, t*999)
     #print('compare',torch.sum(dynamic(z, t*(N-1))),torch.sum(u))
     z = z.detach().clone() + pred * dt
-      
+
     traj.append(z.detach().clone())
 
     pred_list.append(pred.detach().clone().cpu())
@@ -58,7 +59,7 @@ def flowgrad_optimization_oc(z0, dynamic, generate_traj, N, L_N,  number_of_iter
     X1 = traj_org[-1]
 
     #optimal control
-    lambda_ = torch.randn_like(X1).copy_(X1) 
+    lambda_ = torch.randn_like(X1).copy_(X1)
     lambda_.requires_grad_(True)
     if not lambda_.requires_grad:
         print(f"lambda is not properly set")
@@ -70,7 +71,7 @@ def flowgrad_optimization_oc(z0, dynamic, generate_traj, N, L_N,  number_of_iter
         R_output = torch.square(L_N(input_tensor))
 
         score_sum = R_output.sum()
-    
+
         # Compute the gradient of R(lambda + X) with respect to X
         grad_R = torch.autograd.grad(outputs=score_sum, inputs=lambda_, create_graph=False)[0]
 
@@ -114,7 +115,7 @@ def flowgrad_optimization_oc_d(z0, u_ind, dynamic, generate_traj, N, L_N,  numbe
         # print('   inputs:', inputs.view(-1).detach().cpu().numpy())
         print('   L:%.6f'%loss.detach().cpu().numpy())
         # print('   lambda:', lam.reshape(-1).detach().cpu().numpy())
-        
+
         eps = 1e-3 # default: 1e-3
         g_old = None
         d = []
@@ -133,11 +134,11 @@ def flowgrad_optimization_oc_d(z0, u_ind, dynamic, generate_traj, N, L_N,  numbe
                               dynamic(x.contiguous().reshape(shape) + u[j].detach().clone(), t.detach().clone()) * non_uniform_set['length'][j] / N).view(-1)
             output, vjp = torch.autograd.functional.vjp(func, inputs=inputs.view(-1), v=lam.detach().clone().reshape(-1))
             lam = vjp.detach().clone().contiguous().reshape(shape)
-            
+
             u[j].grad = lam.detach().clone()
             del inputs
             if j == 0: break
-        
+
         print('BP time:', time.time() - t_s)
 
         for ind in u.keys():
@@ -153,7 +154,7 @@ def flowgrad_edit(config, text_prompt, alpha, model_path, data_loader, output_fo
   clip_scores = []
   lpips_scores = []
   for batch in data_loader:
-    images, labels = batch
+    # images, labels = batch
     # Create data normalizer and its inverse
     scaler = datasets.get_data_scaler(config)
     inverse_scaler = datasets.get_data_inverse_scaler(config)
@@ -169,8 +170,8 @@ def flowgrad_edit(config, text_prompt, alpha, model_path, data_loader, output_fo
     model_fn = mutils.get_model_fn(score_model, train=False)
 
     # Load the image to edit
-    original_img = get_img(image_path)  
-  
+    original_img = get_img('demo/celeba.jpg')
+
     # log_folder = os.path.join(output_folder, 'figs')
     # print('Images will be saved to:', log_folder)
     # if not os.path.exists(log_folder): os.makedirs(log_folder)
@@ -178,8 +179,8 @@ def flowgrad_edit(config, text_prompt, alpha, model_path, data_loader, output_fo
 
     # Get latent code of the image and save reconstruction
     original_img = original_img.to(config.device)
-    clip_loss = clip_semantic_loss(text_prompt, original_img, config.device, alpha=alpha, inverse_scaler=inverse_scaler)  
-    clip_loss_1 = clip_semantic_loss(text_prompt, original_img, config.device, alpha=1., inverse_scaler=inverse_scaler)  
+    clip_loss = clip_semantic_loss(text_prompt, original_img, config.device, alpha=alpha, inverse_scaler=inverse_scaler)
+    clip_loss_1 = clip_semantic_loss(text_prompt, original_img, config.device, alpha=1., inverse_scaler=inverse_scaler)
 
     lpips_f = lpips.LPIPS(net='alex').to(config.device) # or 'vgg', 'squeeze'
 
@@ -188,15 +189,17 @@ def flowgrad_edit(config, text_prompt, alpha, model_path, data_loader, output_fo
     traj = generate_traj(model_fn, latent, N=100)
   #   save_img(inverse_scaler(traj[-1]), path=os.path.join(log_folder, 'reconstruct.png'))
   #   print('Finished getting latent code and reconstruction; image saved.')
-  
+
     # Edit according to text prompt
     u_ind = [i for i in range(100)]
-    u_opt = flowgrad_optimization_oc_d(latent, u_ind, model_fn, generate_traj, N=100, L_N=clip_loss.L_N,  number_of_iterations=10, alpha=10,
-                                  beta=0.985) 
-    # opt_u = flowgrad_optimization(latent, u_ind, model_fn, generate_traj, N=100, L_N=clip_loss.L_N, u_init=None,  number_of_iterations=10, straightness_threshold=5e-3, lr=10.0) 
+    # u_opt = flowgrad_optimization_oc_d(latent, u_ind, model_fn, generate_traj, N=100, L_N=clip_loss.L_N,  number_of_iterations=10, alpha=10,
+    #                               beta=0.985)
+    z0_opt = dflow_optimization(latent, model_fn, N=10, L_N=clip_loss.L_N, max_iter=20, lr=0.1)
+    # opt_u = flowgrad_optimization(latent, u_ind, model_fn, generate_traj, N=100, L_N=clip_loss.L_N, u_init=None,  number_of_iterations=10, straightness_threshold=5e-3, lr=10.0)
     # traj_gd = generate_traj(model_fn, z0=latent, u=opt_u, N=100)
 
-    traj_oc = generate_traj(model_fn, z0=latent, u=u_opt, N=100)
+    # traj_oc = generate_traj(model_fn, z0=latent, u=u_opt, N=10)
+    traj_oc = generate_traj(model_fn, z0=z0_opt, N=10)
 
     clip_scores.append(clip_loss_1.L_N(traj_oc[-1]).sum())
     lpips_scores.append(lpips_f(traj_oc[-1], traj[-1]).sum())
