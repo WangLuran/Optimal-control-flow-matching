@@ -159,34 +159,41 @@ class clip_semantic_loss():
         clip_mode="ViT-B/32"
         self.interp_mode='bilinear'
         self.clip_model, _ = clip.load(clip_mode, device=device)
-        self.clip_model.eval()
-        for param in self.clip_model.parameters():
-            param.requires_grad = False
         self.clip_c = self.clip_model.logit_scale.exp()
         self.text_tok = clip.tokenize([text]).to(device)
         self.policy = 'color,translation,resize,cutout'
-        self.replicate = 20
+        self.replicate = 20 # second before is 20
         self.img = img
         self.alpha = alpha
         self.inverse_scaler = inverse_scaler
 
     def L_N(self, x):
         sim = (self.inverse_scaler(x) - self.img).abs().mean()
+        batch_size = self.img.shape[0]
+        # print('batch_size',batch_size)
 
         img_aug = DiffAugment(x.repeat(self.replicate, 1, 1, 1), policy=self.policy)
+        # print('img_aug shape', img_aug.shape)
         img_aug = self.inverse_scaler(img_aug)
+        # print('iv shape', img_aug.shape)
         img_aug = torch.nn.functional.interpolate(img_aug, size=224, mode=self.interp_mode)
         img_aug.sub_(self.mean[None, :, None, None]).div_(self.std[None, :, None, None])
 
         logits_per_image, logits_per_text = self.clip_model(img_aug, self.text_tok)
+        logits_per_image = logits_per_image.view(batch_size, self.replicate, -1).mean(dim=1)
         logits_per_image = logits_per_image / self.clip_c
         concept_loss = (-1.) * logits_per_image
+        # print('concept_loss', concept_loss)
+        # print('concept_loss shape', concept_loss.shape)
+        print('regu', sim.sum())
+        print('reward', concept_loss)
 
         return self.alpha * concept_loss.mean() + (1.-self.alpha) * sim.sum()
 
 def flowgrad_optimization(z0, u_ind, dynamic, generate_traj, N=100, L_N=None, u_init=None,  number_of_iterations=10, straightness_threshold=5e-3, lr=1.0):
     device = z0.device
     shape = z0.shape
+    batch_size = shape[0]
     u = {}
     if u_init is None:
         for ind in u_ind:
@@ -215,7 +222,7 @@ def flowgrad_optimization(z0, u_ind, dynamic, generate_traj, N=100, L_N=None, u_
         ### get the forward simulation result and the non-uniform discretization trajectory
         ### non_uniform_set: indices and interval length (t_{j+1} - t_j)
         z_traj, non_uniform_set = generate_traj(dynamic, z0, u=u, N=N, straightness_threshold=straightness_threshold)
-        print(non_uniform_set)
+        # print(non_uniform_set)
 
         t_s = time.time()
         ### use lambda to store \nabla L
@@ -226,17 +233,17 @@ def flowgrad_optimization(z0, u_ind, dynamic, generate_traj, N=100, L_N=None, u_
         lam = torch.autograd.grad(loss, inputs)[0]
         lam = lam.detach().clone()
 
-        print('iteration:', i)
-        print('   inputs:', inputs.view(-1).detach().cpu().numpy())
-        print('   L:%.6f'%loss.detach().cpu().numpy())
-        print('   lambda:', lam.reshape(-1).detach().cpu().numpy())
+        # print('iteration:', i)
+        # print('   inputs:', inputs.view(-1).detach().cpu().numpy())
+        # print('   L:%.6f'%loss.detach().cpu().numpy())
+        # print('   lambda:', lam.reshape(-1).detach().cpu().numpy())
         
         if loss.detach().cpu().numpy() < L_best:
             opt_u = {}
             for ind in u.keys():
                 opt_u[ind] = u[ind].detach().clone()
             L_best = loss.detach().cpu().numpy()
-        print('   L_best:%.6f'%L_best)
+        # print('   L_best:%.6f'%L_best)
         if i == number_of_iterations: break 
         
         eps = 1e-3 # default: 1e-3
@@ -252,17 +259,17 @@ def flowgrad_optimization(z0, u_ind, dynamic, generate_traj, N=100, L_N=None, u_
             inputs = torch.zeros(lam.shape, device=device)
             inputs.data = z_traj[j].to(device).detach().clone()
             inputs.requires_grad = True
-            t = (torch.ones((1, )) * j / N * (1.-eps) + eps) * 999
+            t = (torch.ones((batch_size, )) * j / N * (1.-eps) + eps) * 999
             func = lambda x: (x.contiguous().reshape(shape) + u[j].detach().clone() + \
                               dynamic(x.contiguous().reshape(shape) + u[j].detach().clone(), t.detach().clone()) * non_uniform_set['length'][j] / N).view(-1)
             output, vjp = torch.autograd.functional.vjp(func, inputs=inputs.view(-1), v=lam.detach().clone().reshape(-1))
             lam = vjp.detach().clone().contiguous().reshape(shape)
             
-            u[j].grad = lam.detach().clone()
+            u[j].grad = batch_size*lam.detach().clone()
             del inputs
             if j == 0: break
         
-        print('BP time:', time.time() - t_s)
+        # print('BP time:', time.time() - t_s)
         ### Re-assignment  
         for j in range(len(non_uniform_set['indices'])):
             start = non_uniform_set['indices'][j]
