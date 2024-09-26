@@ -1,6 +1,6 @@
 # coding=utf-8
 
-from utils import run_lib_flowgrad_oc
+from utils import run_lib_flowgrad
 from absl import app
 from absl import flags
 from ml_collections.config_flags import config_flags
@@ -21,7 +21,7 @@ flags.mark_flags_as_required(["model_path", "text_prompt", "alpha", "image_path"
 
 def main(argv):
   if FLAGS.mode == "flowgrad-edit":
-    run_lib_flowgrad_oc.flowgrad_edit(FLAGS.config, FLAGS.text_prompt, FLAGS.alpha, FLAGS.model_path, FLAGS.image_path, FLAGS.output_folder)
+    run_lib_flowgrad.flowgrad_edit(FLAGS.config, FLAGS.text_prompt, FLAGS.alpha, FLAGS.model_path, FLAGS.image_path, FLAGS.output_folder)
   else:
     raise ValueError(f"Mode {FLAGS.mode} not recognized.")
 

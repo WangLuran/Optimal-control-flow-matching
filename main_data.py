@@ -22,12 +22,13 @@ import json
 
 FLAGS = flags.FLAGS
 
-config_flags.DEFINE_config_file("config", None, "Rectified Flow Model configuration.", lock_config=True)
+config_flags.DEFINE_config_file("config", 'RectifiedFlow/configs/celeba_hq_pytorch_rf_gaussian.py', "Rectified Flow Model configuration.", lock_config=True)
 flags.DEFINE_integer("batch_size", 1, "batch size")
 flags.DEFINE_integer("index", 0, "position of samples")
 text_prompts = ['A photo of an old face.','A photo of a sad face.','A photo of a smiling face.','A photo of an angry face.','A photo of a face with curly hair.']
+text_prompt = 'A photo of a smiling face.'
 alpha = 0.7
-model_path = '../checkpoint_10.pth'
+model_path = './checkpoint_10.pth'
 
 # # Create an empty dictionary
 # empty_dict = {}
@@ -71,9 +72,9 @@ class CelebADataset(Dataset):
         return image
 
 # Create the dataset and DataLoader
-celeba_dataset = CelebADataset(image_dir)
+# celeba_dataset = CelebADataset(image_dir)
 
-print('data finish')
+# print('data finish')
 
 # Set random seed for reproducibility
 np.random.seed(42)
@@ -81,17 +82,18 @@ np.random.seed(42)
 
 def main(argv):
   # Generate random indices for sampling 1,000 images
-  indices = [i+FLAGS.index for i in range(100)]
+#   indices = [i+FLAGS.index for i in range(100)]
 
   # Create a subset sampler
-  sampler = SubsetRandomSampler(indices)
+#   sampler = SubsetRandomSampler(indices)
   # Load the sampled subset with a DataLoader
-  data_loader = DataLoader(celeba_dataset, sampler=sampler, batch_size=FLAGS.batch_size)
+#   data_loader = DataLoader(celeba_dataset, sampler=sampler, batch_size=FLAGS.batch_size)
 
-  print('data loader finish')
+  image_path = 'demo/celeba.jpg'
+#   print('data loader finish')
 
   #c, l, i = run_lib_flowgrad_oc.flowgrad_edit(FLAGS.config, text_prompts, alpha, model_path, data_loader)
-  _ = run_lib_flowgrad_oc.dflow_edit(FLAGS.config, text_prompts, alpha, model_path, data_loader)
+  run_lib_flowgrad_oc.flowgrad_edit_single(FLAGS.config, text_prompt, alpha, model_path, image_path)
 
 
 
