@@ -185,8 +185,9 @@ class clip_semantic_loss():
         concept_loss = (-1.) * logits_per_image
         # print('concept_loss', concept_loss)
         # print('concept_loss shape', concept_loss.shape)
-        print('regu', sim.sum())
-        print('reward', concept_loss)
+        # print('regu', sim.sum().item())
+        # print('reward', concept_loss.sum().item())
+        print(f'regu: {sim.sum().item():.4f}, reward: {concept_loss.sum().item():.4f}')
 
         return self.alpha * concept_loss.mean() + (1.-self.alpha) * sim.sum()
 
