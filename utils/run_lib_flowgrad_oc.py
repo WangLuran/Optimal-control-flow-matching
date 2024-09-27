@@ -144,12 +144,12 @@ def dflow_optimization_lbfgs(z0, dynamic, N, L_N, max_iter, lr=1, verbose=False)
         # ts = torch.linspace(*tlist, n_step + 1, device=r.device) * (1. - eps) + eps
         # print('ts', ts)
         dt = 1 / N
-        print('dt', dt)
+        # print('dt', dt)
         for i in range(N):
           t = torch.ones(z0.shape[0], device=z0.device) * i / N * (1.-eps) + eps
-          print(i, t, t * (N - 1))
+          # print(i, t, t * 999)
           # TODO: check if t is correct
-          r = r + dynamic(r, t * (N - 1)) * dt
+          r = r + dynamic(r, t * 999).detach() * dt
 
         return r.detach(), L_N(r)
 
@@ -171,7 +171,7 @@ def dflow_optimization_lbfgs(z0, dynamic, N, L_N, max_iter, lr=1, verbose=False)
       _, loss = loss_fn(r0_opt)
       if torch.isnan(loss).any():
           return torch.tensor(1e5, device=r0_opt.device)
-      loss.backward()
+      loss.backward(retain_graph=True)
       # clip_grad_norm_(r0_opt, max_grad_norm)
       if verbose:
           print(f'Iter {cnt}: Loss {loss.item():.4f}')
@@ -182,14 +182,15 @@ def dflow_optimization_lbfgs(z0, dynamic, N, L_N, max_iter, lr=1, verbose=False)
     optimizer = torch.optim.LBFGS([r0_opt], lr=lr, max_iter=max_iter, line_search_fn='strong_wolfe')
     
     for step in range(max_step):
-      loss = optimizer.step(closure)
-      print(f'Step {step}: Loss {loss.item():.4f}')
+      # loss = 
+      optimizer.step(closure).detach()
+      # print(f'Step {step}: Loss {loss.item():.4f}')
 
     r0_opt = r0_opt.detach()
     with torch.no_grad():
       r1_opt, _ = loss_fn(r0_opt)
 
-    return r1_opt, r0_opt
+    return r1_opt
 
 def flowgrad_optimization_oc_d(z0, u_ind, dynamic, generate_traj, N, L_N,  number_of_iterations, alpha,
                                   beta):
@@ -408,7 +409,7 @@ def dflow_edit_single(config, text_prompt, alpha, model_path, image_path, output
 
   print('clip loss', clip_loss)
   print('lpips score', lpips_score)
-  print('total time', time.time() - t_s)
+  print('total time', time.time() - ts)
 
 
 def flowgrad_edit(config, text_prompts, alpha, model_path, data_loader):
