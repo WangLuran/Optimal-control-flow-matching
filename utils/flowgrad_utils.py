@@ -153,7 +153,7 @@ def save_img(img, path=None):
 
 class clip_semantic_loss():
     def __init__(self, text, img, device, alpha=0.5, replicate=20, inverse_scaler=None):
-        self.loss_fn_alex = lpips.LPIPS(net='alex', spatial=False).to(device)
+        # self.loss_fn_alex = lpips.LPIPS(net='alex', spatial=False).to(device)
         self.mean = torch.tensor([0.48145466, 0.4578275, 0.40821073]).to(device)
         self.std = torch.tensor([0.26862954, 0.26130258, 0.27577711]).to(device)
         clip_mode="ViT-B/32"

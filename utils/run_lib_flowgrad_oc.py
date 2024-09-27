@@ -116,7 +116,7 @@ def dflow_optimization(z0, dynamic, N, L_N,  number_of_iterations, alpha):
 
     return z_best
 
-def dflow_optimization_d(z0, dynamic, N, L_N,  number_of_iterations, alpha):
+def dflow_optimization_lbfgs(z0, dynamic, N, L_N, max_iter, lr=1, verbose=False):
     device = z0.device
     shape = z0.shape
     batch_size = z0.shape[0]
@@ -125,36 +125,69 @@ def dflow_optimization_d(z0, dynamic, N, L_N,  number_of_iterations, alpha):
     cnt = 0
     dt = 1./N
     eps = 1e-3 # default: 1e-3
+    max_step = 5
+
+    # def loss_fn(cur_r0):
+    #     r = cur_r0
+    #     dt = 1./N
+    #     eps = 1e-3
+    #     for i in range(N):
+    #       t = torch.ones(z0.shape[0], device=z0.device) * i / N * (1.-eps) + eps
+    #       pred = dynamic(r, t*999)
+    #       r = r + pred * dt
+
+    #     return r.detach(), L_N(r)
 
     def loss_fn(cur_r0):
         r = cur_r0
-        dt = 1./N
-        eps = 1e-3
+        tlist = [0, 1]
+        # ts = torch.linspace(*tlist, n_step + 1, device=r.device) * (1. - eps) + eps
+        # print('ts', ts)
+        dt = 1 / N
+        print('dt', dt)
         for i in range(N):
           t = torch.ones(z0.shape[0], device=z0.device) * i / N * (1.-eps) + eps
-          pred = dynamic(r, t*999)
-          r = r + pred * dt
+          print(i, t, t * (N - 1))
+          # TODO: check if t is correct
+          r = r + dynamic(r, t * (N - 1)) * dt
 
         return r.detach(), L_N(r)
 
+    # def closure():
+    #     nonlocal cnt, r0_opt
+    #     cnt += 1
+    #     optimizer.zero_grad()
+    #     r0_opt.requires_grad_(False)
+    #     _, loss = loss_fn(r0_opt)
+    #     loss.backward()
+    #     if verbose:
+    #         print(f'Iter {cnt}: Loss {loss.item():.4f}')
+    #     return loss
+    
     def closure():
-        nonlocal cnt, r0_opt
-        cnt += 1
-        optimizer.zero_grad()
-        r0_opt.requires_grad_(False)
-        _, loss = loss_fn(r0_opt)
-        loss.backward()
-        if verbose:
-            print(f'Iter {cnt}: Loss {loss.item():.4f}')
-        return loss
+      nonlocal cnt
+      cnt += 1
+      optimizer.zero_grad()
+      _, loss = loss_fn(r0_opt)
+      if torch.isnan(loss).any():
+          return torch.tensor(1e5, device=r0_opt.device)
+      loss.backward()
+      # clip_grad_norm_(r0_opt, max_grad_norm)
+      if verbose:
+          print(f'Iter {cnt}: Loss {loss.item():.4f}')
+      return loss
 
     r0_opt = z0.detach().clone()
     r0_opt.requires_grad_(True)
-    optimizer = torch.optim.LBFGS([r0_opt], lr=alpha, max_iter=number_of_iterations, history_size=1)
-    optimizer.step(closure)
+    optimizer = torch.optim.LBFGS([r0_opt], lr=lr, max_iter=max_iter, line_search_fn='strong_wolfe')
+    
+    for step in range(max_step):
+      loss = optimizer.step(closure)
+      print(f'Step {step}: Loss {loss.item():.4f}')
 
     r0_opt = r0_opt.detach()
-    r1_opt, _ = loss_fn(r0_opt)
+    with torch.no_grad():
+      r1_opt, _ = loss_fn(r0_opt)
 
     return r1_opt, r0_opt
 
@@ -278,7 +311,7 @@ def dflow_edit(config, text_prompts, alpha, model_path, data_loader):
   
       # Edit according to text prompt
       print('optimization starts')
-      z0_d = dflow_optimization(latent, model_fn, N=100, L_N=clip_loss_1.L_N,  number_of_iterations=15, alpha=0.1)
+      z0_d = dflow_optimization_lbfgs(latent, model_fn, N=100, L_N=clip_loss_1.L_N,  max_iter=5, lr=1)
 
       traj_oc = generate_traj(model_fn, z0=z0_d, N=100)
 
@@ -298,6 +331,84 @@ def dflow_edit(config, text_prompts, alpha, model_path, data_loader):
       print('num', len(clip_scores)/5)
 
   return sum(clip_scores)/len(clip_scores), sum(lpips_scores)/len(lpips_scores), sum(id_scores)/len(id_scores)#,sum(clip_scores_gd)/len(clip_scores_gd), sum(lpips_scores_gd)/len(lpips_scores_gd),sum(id_scores_gd)/len(id_scores_gd)
+
+
+# define a context manager which can count time cost
+from contextlib import contextmanager
+
+@contextmanager
+def timer(name):
+   print('running', name, '...')
+   start_time = time.time()
+   yield
+   elapsed_time = time.time() - start_time
+   print(f'\t{name} costs: {elapsed_time:.4f} s')
+
+
+def dflow_edit_single(config, text_prompt, alpha, model_path, image_path, output_folder='output'):
+  image = get_img(image_path)  
+  batch_size = 1
+
+  ts = time.time()
+  # Create data normalizer and its inverse
+  scaler = datasets.get_data_scaler(config)
+  inverse_scaler = datasets.get_data_inverse_scaler(config)
+  
+  # Initialize model
+  score_model = mutils.create_model(config)
+  ema = ExponentialMovingAverage(score_model.parameters(), decay=config.model.ema_rate)
+  state = dict(model=score_model, ema=ema, step=0)
+
+  state = restore_checkpoint(model_path, state, device=config.device)
+  ema.copy_to(score_model.parameters())
+
+  model_fn = mutils.get_model_fn(score_model, train=False)
+
+  log_folder = os.path.join(output_folder, 'figs')
+  print('Images will be saved to:', log_folder)
+  if not os.path.exists(log_folder): os.makedirs(log_folder)
+  save_img(image, path=os.path.join(log_folder, 'original.png'))
+
+  original_img = image.to(config.device)
+  with timer('clip loss'):
+    clip_loss = clip_semantic_loss(text_prompt, original_img, config.device, alpha=alpha, inverse_scaler=inverse_scaler)  
+  with timer('clip loss 1'):
+    clip_loss_1 = clip_semantic_loss(text_prompt, original_img, config.device, alpha=1., inverse_scaler=inverse_scaler)  
+  with timer('lpips'):
+    lpips_f = lpips.LPIPS(net='alex').to(config.device) # or 'vgg', 'squeeze'
+
+  # TODO: this step is very slow, consider preprocessing all images
+  # with timer('embed'):
+  #   latent = embed_to_latent(model_fn, scaler(original_img))
+  # save_img(latent, path=os.path.join(log_folder, 'latent.png'))
+  latent = get_img(os.path.join(log_folder, 'latent.png')).to(config.device)
+
+  with timer('generate traj'):
+    traj = generate_traj(model_fn, latent, N=100)
+  # torch.save(traj, 'traj.pt')
+  # traj = torch.load('traj.pt')
+  # for x in traj:
+  #    x.to(config.device)
+
+  # Edit according to text prompt
+  with timer('optimization'):
+    z0_d = dflow_optimization_lbfgs(latent, model_fn, N=100, L_N=clip_loss_1.L_N,  max_iter=5, lr=1)
+
+  with timer('generate traj with z0_d'):
+    traj_oc = generate_traj(model_fn, z0=z0_d, N=100)
+
+  print('dif', (z0_d-latent).sum())
+
+  save_img(inverse_scaler(traj_oc[-1]), path=os.path.join(log_folder, 'optimized_dflow.png'))
+
+  clip_loss = clip_loss_1.L_N(traj_oc[-1]).detach().cpu().numpy()
+  lpips_score = lpips_f(traj_oc[-1], traj[-1]).detach().cpu().numpy()
+
+  print('text prompt', text_prompt)
+
+  print('clip loss', clip_loss)
+  print('lpips score', lpips_score)
+  print('total time', time.time() - t_s)
 
 
 def flowgrad_edit(config, text_prompts, alpha, model_path, data_loader):

@@ -28,6 +28,7 @@ flags.DEFINE_integer("index", 0, "position of samples")
 text_prompts = ['A photo of an old face.','A photo of a sad face.','A photo of a smiling face.','A photo of an angry face.','A photo of a face with curly hair.']
 text_prompt = 'A photo of a smiling face.'
 alpha = 0.7
+lr = 1
 model_path = './checkpoint_10.pth'
 
 # # Create an empty dictionary
@@ -92,8 +93,8 @@ def main(argv):
   image_path = 'demo/celeba.jpg'
 #   print('data loader finish')
 
-  #c, l, i = run_lib_flowgrad_oc.flowgrad_edit(FLAGS.config, text_prompts, alpha, model_path, data_loader)
-  run_lib_flowgrad_oc.flowgrad_edit_single(FLAGS.config, text_prompt, alpha, model_path, image_path)
+  run_lib_flowgrad_oc.dflow_edit_single(FLAGS.config, text_prompt, alpha, model_path, image_path)
+  # run_lib_flowgrad_oc.flowgrad_edit_single(FLAGS.config, text_prompt, alpha, model_path, image_path)
 
 
 
