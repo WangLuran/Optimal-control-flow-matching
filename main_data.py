@@ -119,18 +119,13 @@ def main(argv):
   # if isinstance(text_prompt, str):
   #    text_prompt = [text_prompt]
 
-  if FLAGS.method == 'flowgrad':
-     opt_method = run_lib_flowgrad_oc.flowgrad_edit_batch
-  elif FLAGS.method == 'ocfm':
-     opt_method = run_lib_flowgrad_oc.
 
-
-  output_dirs = ['old', 'sad', 'smile', 'angry', 'curly']
+  output_dirs = ['ocfm/old', 'ocfm/sad', 'ocfm/smile', 'ocfm/angry', 'ocfm/curly']
 
   prompt = text_prompts[0]
   output_dir = output_dirs[0]
 
-  opt_method(FLAGS.config, model_path, image_paths, prompt, output_dir)
+  run_lib_flowgrad_oc.flowgrad_edit_batch(FLAGS.config, model_path, image_paths, prompt, output_dir)
   # run_lib_flowgrad_oc.flowgrad_edit_single(FLAGS.config, text_prompt, alpha, model_path, image_path)
 
 

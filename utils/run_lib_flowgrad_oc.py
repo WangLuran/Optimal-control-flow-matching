@@ -581,7 +581,7 @@ def flowgrad_edit_batch(config, model_path, image_paths, text_prompt, output_dir
   N = 100
 
   for img_path in tqdm(image_paths):
-      target_dir = f'examples/{FLAGS.method}/{output_dir}'
+      target_dir = f'examples/{output_dir}'
       if img_path.startswith('examples/original'):
         opt_img_path = img_path.replace('examples/original', target_dir)
       else:
