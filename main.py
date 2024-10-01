@@ -47,7 +47,7 @@ def main(argv):
   # else:
   #   raise ValueError(f"Mode {FLAGS.mode} not recognized.")
 
-  output_dirs = ['ocfm/old', 'ocfm/sad', 'ocfm/smile', 'ocfm/angry', 'ocfm/curly']
+  output_dirs = ['flowgrad/old', 'flowgrad/sad', 'flowgrad/smile', 'flowgrad/angry', 'flowgrad/curly']
 
   prompt = text_prompts[0]
   output_dir = output_dirs[0]
