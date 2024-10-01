@@ -9,12 +9,12 @@ import os
 
 FLAGS = flags.FLAGS
 
-config_flags.DEFINE_config_file("config", None, "Rectified Flow Model configuration.", lock_config=True)
+config_flags.DEFINE_config_file("config", 'RectifiedFlow/configs/celeba_hq_pytorch_rf_gaussian.py', "Rectified Flow Model configuration.", lock_config=True)
 flags.DEFINE_enum("mode", 'flowgrad-edit', ["flowgrad-edit"], "Running mode.")
-flags.DEFINE_string("text_prompt", None, "text prompt for editing")
+# flags.DEFINE_string("text_prompt", None, "text prompt for editing")
 flags.DEFINE_float("alpha", 0.7, "The coefficient to balance the edit loss and the reconstruction loss.")
-flags.DEFINE_string("model_path", None, "Path to pre-trained model checkpoint.")
-flags.DEFINE_string("image_path", None, "The path to the image that will be edited")
+# flags.DEFINE_string("model_path", None, "Path to pre-trained model checkpoint.")
+# flags.DEFINE_string("image_path", None, "The path to the image that will be edited")
 flags.DEFINE_string("output_folder", "output", "The folder name for storing output")
 flags.mark_flags_as_required(["model_path", "text_prompt", "alpha", "image_path"])
 
