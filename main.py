@@ -16,7 +16,7 @@ flags.DEFINE_float("alpha", 0.7, "The coefficient to balance the edit loss and t
 # flags.DEFINE_string("model_path", None, "Path to pre-trained model checkpoint.")
 # flags.DEFINE_string("image_path", None, "The path to the image that will be edited")
 flags.DEFINE_string("output_folder", "output", "The folder name for storing output")
-flags.mark_flags_as_required(["model_path", "text_prompt", "alpha", "image_path"])
+# flags.mark_flags_as_required(["model_path", "text_prompt", "alpha", "image_path"])
 
 
 text_prompts = ['A photo of an old face.','A photo of a sad face.','A photo of a smiling face.','A photo of an angry face.','A photo of a face with curly hair.']
