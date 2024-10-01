@@ -19,11 +19,48 @@ flags.DEFINE_string("output_folder", "output", "The folder name for storing outp
 flags.mark_flags_as_required(["model_path", "text_prompt", "alpha", "image_path"])
 
 
+text_prompts = ['A photo of an old face.','A photo of a sad face.','A photo of a smiling face.','A photo of an angry face.','A photo of a face with curly hair.']
+image_paths = ['examples/original/00004.jpg',
+ 'examples/original/00008.jpg',
+ 'examples/original/00021.jpg',
+ 'examples/original/00037.jpg',
+ 'examples/original/00039.jpg',
+ 'examples/original/00070.jpg',
+ 'examples/original/00072.jpg',
+ 'examples/original/00078.jpg',
+ 'examples/original/00097.jpg',
+ 'examples/original/00098.jpg',
+ 'examples/original/00103.jpg',
+ 'examples/original/00105.jpg',
+ 'examples/original/00107.jpg',
+ 'examples/original/00117.jpg',
+ 'examples/original/00133.jpg',
+ 'examples/original/00134.jpg',
+ 'examples/original/00182.jpg',
+ 'examples/original/00185.jpg',
+ 'examples/original/00186.jpg']
+model_path = './checkpoint_10.pth'
+
 def main(argv):
-  if FLAGS.mode == "flowgrad-edit":
-    run_lib_flowgrad.flowgrad_edit(FLAGS.config, FLAGS.text_prompt, FLAGS.alpha, FLAGS.model_path, FLAGS.image_path, FLAGS.output_folder)
-  else:
-    raise ValueError(f"Mode {FLAGS.mode} not recognized.")
+  # if FLAGS.mode == "flowgrad-edit":
+  #   run_lib_flowgrad.flowgrad_edit(FLAGS.config, FLAGS.text_prompt, FLAGS.alpha, FLAGS.model_path, FLAGS.image_path, FLAGS.output_folder)
+  # else:
+  #   raise ValueError(f"Mode {FLAGS.mode} not recognized.")
+
+  output_dirs = ['ocfm/old', 'ocfm/sad', 'ocfm/smile', 'ocfm/angry', 'ocfm/curly']
+
+  prompt = text_prompts[0]
+  output_dir = output_dirs[0]
+
+  metrics = run_lib_flowgrad.flowgrad_edit_batch(
+       FLAGS.config, 
+       model_path, 
+       image_paths, 
+       prompt, 
+       output_dir
+    )
+  
+  print(metrics)
 
 
 if __name__ == "__main__":
