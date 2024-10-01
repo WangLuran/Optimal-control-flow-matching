@@ -562,7 +562,7 @@ def flowgrad_edit_single(config, text_prompt, alpha, model_path, image_path, opt
   pass
 
 
-def flowgrad_edit_batch(config, model_path, image_paths, text_prompts):
+def flowgrad_edit_batch(config, model_path, image_paths, text_prompt, output_dir):
    
   # Create data normalizer and its inverse
   scaler = datasets.get_data_scaler(config)
@@ -583,11 +583,9 @@ def flowgrad_edit_batch(config, model_path, image_paths, text_prompts):
   beta = 1
   max_step = 10
   alpha = 0.7
-  output_dirs = ['old', 'sad', 'smile', 'angry', 'curly']
 
   for img_path in tqdm(image_paths):
-    for i, prompt in enumerate(tqdm(text_prompts)):
-      target_dir = f'examples/{FLAGS.method}/{output_dirs[i]}'
+      target_dir = f'examples/{FLAGS.method}/{output_dir}'
       if img_path.startswith('examples/original'):
         opt_img_path = img_path.replace('examples/original', target_dir)
       else:
@@ -598,7 +596,7 @@ def flowgrad_edit_batch(config, model_path, image_paths, text_prompts):
       batch_size = 1
 
       original_img = image.to(config.device)
-      clip_loss = clip_semantic_loss(prompt, original_img, config.device, alpha=alpha, inverse_scaler=inverse_scaler)  
+      clip_loss = clip_semantic_loss(text_prompt, original_img, config.device, alpha=alpha, inverse_scaler=inverse_scaler)  
       
       t_s = time.time()
       latent = embed_to_latent(model_fn, scaler(original_img))
@@ -606,7 +604,7 @@ def flowgrad_edit_batch(config, model_path, image_paths, text_prompts):
 
       # Edit according to text prompt
       print(f'optimization starts: {img_path} -> {opt_img_path}')
-      u_ind = [i for i in range(N)]
+      u_ind = [_ for _ in range(N)]
       u_opt = flowgrad_optimization_oc_d(latent, u_ind, model_fn, generate_traj, N=N, L_N=clip_loss.L_N,  number_of_iterations=max_step, alpha=lr,#first 3, second 2.75, third 2.5
                                   beta=beta) #first is 0.990, second is 0.9995, third is 0.995; first is 0.9925 third 0.995 last is 0.990
 
@@ -616,7 +614,7 @@ def flowgrad_edit_batch(config, model_path, image_paths, text_prompts):
         save_img(inverse_scaler(traj_oc[-1]), path=opt_img_path)
 
       with torch.no_grad():
-        clip_loss_1 = clip_semantic_loss(prompt, original_img, config.device, alpha=1., inverse_scaler=inverse_scaler)  
+        clip_loss_1 = clip_semantic_loss(text_prompt, original_img, config.device, alpha=1., inverse_scaler=inverse_scaler)  
         # id_loss = IDLoss(device=config.device)
 
         lpips_f = lpips.LPIPS(net='alex').to(config.device) # or 'vgg', 'squeeze'
@@ -624,4 +622,4 @@ def flowgrad_edit_batch(config, model_path, image_paths, text_prompts):
         clip_loss = clip_loss_1.L_N(traj_oc[-1]).item()
         lpips_score = lpips_f(traj_oc[-1], traj[-1]).item()
         # id_loss = 1. - id_loss(traj[-1], traj_oc[-1]).detach().cpu().numpy()
-        print(f'{i} clip loss: {clip_loss:.4f}, lpips score: {lpips_score:.4f}, total time: {time.time() - t_s:.4f} s')
+        print(f'clip loss: {clip_loss:.4f}, lpips score: {lpips_score:.4f}, total time: {time.time() - t_s:.4f} s')

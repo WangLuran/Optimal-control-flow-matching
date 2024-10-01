@@ -125,9 +125,12 @@ def main(argv):
     #  opt_method = run_lib_flowgrad_oc.
 
 
-  
+  output_dirs = ['old', 'sad', 'smile', 'angry', 'curly']
 
-  opt_method(FLAGS.config, model_path, image_paths, text_prompts)
+  prompt = text_prompts[0]
+  output_dir = output_dirs[0]
+
+  opt_method(FLAGS.config, model_path, image_paths, prompt, output_dir)
   # run_lib_flowgrad_oc.flowgrad_edit_single(FLAGS.config, text_prompt, alpha, model_path, image_path)
 
 
