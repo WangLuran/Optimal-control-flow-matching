@@ -7,7 +7,7 @@ import numpy as np
 import logging
 import lpips
 import json
-
+from tqdm import tqdm
 # Keep the import below for registering all model definitions
 from RectifiedFlow.models import ddpm, ncsnv2, ncsnpp
 from RectifiedFlow.models import utils as mutils
@@ -490,61 +490,29 @@ def flowgrad_edit(config, text_prompts, alpha, model_path, data_loader):
   return sum(clip_scores)/len(clip_scores), sum(lpips_scores)/len(lpips_scores), sum(id_scores)/len(id_scores)#,sum(clip_scores_gd)/len(clip_scores_gd), sum(lpips_scores_gd)/len(lpips_scores_gd),sum(id_scores_gd)/len(id_scores_gd)
 
 
-def flowgrad_edit_single(config, text_prompt, alpha, model_path, image_path, output_folder='output'):   
-  # Load the image to edit
-  image = get_img(image_path)  
-  batch_size = 1
-
-  # Create data normalizer and its inverse
-  scaler = datasets.get_data_scaler(config)
-  inverse_scaler = datasets.get_data_inverse_scaler(config)
-
-  # Initialize model
-  score_model = mutils.create_model(config)
-  ema = ExponentialMovingAverage(score_model.parameters(), decay=config.model.ema_rate)
-  state = dict(model=score_model, ema=ema, step=0)
-
-  state = restore_checkpoint(model_path, state, device=config.device)
-  ema.copy_to(score_model.parameters())
-
-  model_fn = mutils.get_model_fn(score_model, train=False)
+def flowgrad_edit_single(config, text_prompt, alpha, model_path, image_path, opt_img_path=None):   
   
-  log_folder = os.path.join(output_folder, 'figs')
-  print('Images will be saved to:', log_folder)
-  if not os.path.exists(log_folder): os.makedirs(log_folder)
-  save_img(image, path=os.path.join(log_folder, 'original.png'))
-
-  original_img = image.to(config.device)
-  clip_loss = clip_semantic_loss(text_prompt, original_img, config.device, alpha=alpha, inverse_scaler=inverse_scaler)  
-  clip_loss_1 = clip_semantic_loss(text_prompt, original_img, config.device, alpha=1., inverse_scaler=inverse_scaler)  
-  # id_loss = IDLoss(device=config.device)
-
-  lpips_f = lpips.LPIPS(net='alex').to(config.device) # or 'vgg', 'squeeze'
-
-  t_s = time.time()
-  latent = embed_to_latent(model_fn, scaler(original_img))
-  traj = generate_traj(model_fn, latent, N=100)
-  save_img(inverse_scaler(traj[-1]), path=os.path.join(log_folder, 'recover.png'))
   
-  # Edit according to text prompt
-  print('optimization starts')
-  u_ind = [i for i in range(100)]
-  u_opt = flowgrad_optimization_oc_d(latent, u_ind, model_fn, generate_traj, N=100, L_N=clip_loss.L_N,  number_of_iterations=15, alpha=2.5,#first 3, second 2.75, third 2.5
-                              beta=0.995) #first is 0.990, second is 0.9995, third is 0.995; first is 0.9925 third 0.995 last is 0.990
+  
+  # log_folder = os.path.join(output_folder, 'figs')
+  # print('Images will be saved to:', log_folder)
+  # if not os.path.exists(log_folder): os.makedirs(log_folder)
+  # save_img(image, path=os.path.join(log_folder, 'original.png'))
+
+  
+  
+
+
+
+  
+  # save_img(inverse_scaler(traj[-1]), path=os.path.join(log_folder, 'recover.png'))
+  
+  
   # opt_u = flowgrad_optimization(latent, u_ind, model_fn, generate_traj, N=100, L_N=clip_loss.L_N, u_init=None,  number_of_iterations=10, straightness_threshold=5e-3, lr=10.0) 
   # traj_gd = generate_traj(model_fn, z0=latent, u=opt_u, N=100)
 
-  traj_oc = generate_traj(model_fn, z0=latent, u=u_opt, N=100)
 
-  save_img(inverse_scaler(traj_oc[-1]), path=os.path.join(log_folder, 'optimized_oc_d_t.png'))
-
-  clip_loss = clip_loss_1.L_N(traj_oc[-1]).detach().cpu().numpy()
-  lpips_score = lpips_f(traj_oc[-1], traj[-1]).detach().cpu().numpy()
-  # id_loss = 1. - id_loss(traj[-1], traj_oc[-1]).detach().cpu().numpy()
-  print('clip loss', clip_loss)
-  print('lpips score', lpips_score)
-  # print('id', id_loss)
-  print('total time', time.time() - t_s)
+  
 
 
 #   print('OC results:')
@@ -591,3 +559,69 @@ def flowgrad_edit_single(config, text_prompt, alpha, model_path, image_path, out
 
     # print('oc similarity', id_loss(traj[-1], traj_oc[-1]))
     # print('gd similarity', id_loss(traj[-1], traj_gd[-1]))
+  pass
+
+
+def flowgrad_edit_batch(config, model_path, image_paths, text_prompts):
+   
+  # Create data normalizer and its inverse
+  scaler = datasets.get_data_scaler(config)
+  inverse_scaler = datasets.get_data_inverse_scaler(config)
+
+  # Initialize model
+  score_model = mutils.create_model(config)
+  ema = ExponentialMovingAverage(score_model.parameters(), decay=config.model.ema_rate)
+  state = dict(model=score_model, ema=ema, step=0)
+
+  state = restore_checkpoint(model_path, state, device=config.device)
+  ema.copy_to(score_model.parameters())
+
+  model_fn = mutils.get_model_fn(score_model, train=False)
+  
+  N = 100
+  lr = 10
+  beta = 1
+  max_step = 10
+  alpha = 0.7
+  output_dirs = ['old', 'sad', 'smile', 'angry', 'curly']
+
+  for img_path in tqdm(image_paths):
+    for i, prompt in enumerate(tqdm(text_prompts)):
+      target_dir = f'examples/{FLAGS.method}/{output_dirs[i]}'
+      if img_path.startswith('examples/original'):
+        opt_img_path = img_path.replace('examples/original', target_dir)
+      else:
+        opt_img_path = None
+
+      # Load the image to edit
+      image = get_img(img_path)  
+      batch_size = 1
+
+      original_img = image.to(config.device)
+      clip_loss = clip_semantic_loss(prompt, original_img, config.device, alpha=alpha, inverse_scaler=inverse_scaler)  
+      
+      t_s = time.time()
+      latent = embed_to_latent(model_fn, scaler(original_img))
+      traj = generate_traj(model_fn, latent, N=N)
+
+      # Edit according to text prompt
+      print(f'optimization starts: {img_path} -> {opt_img_path}')
+      u_ind = [i for i in range(N)]
+      u_opt = flowgrad_optimization_oc_d(latent, u_ind, model_fn, generate_traj, N=N, L_N=clip_loss.L_N,  number_of_iterations=max_step, alpha=lr,#first 3, second 2.75, third 2.5
+                                  beta=beta) #first is 0.990, second is 0.9995, third is 0.995; first is 0.9925 third 0.995 last is 0.990
+
+      traj_oc = generate_traj(model_fn, z0=latent, u=u_opt, N=N)
+
+      if opt_img_path is not None:
+        save_img(inverse_scaler(traj_oc[-1]), path=opt_img_path)
+
+      with torch.no_grad():
+        clip_loss_1 = clip_semantic_loss(prompt, original_img, config.device, alpha=1., inverse_scaler=inverse_scaler)  
+        # id_loss = IDLoss(device=config.device)
+
+        lpips_f = lpips.LPIPS(net='alex').to(config.device) # or 'vgg', 'squeeze'
+
+        clip_loss = clip_loss_1.L_N(traj_oc[-1]).item()
+        lpips_score = lpips_f(traj_oc[-1], traj[-1]).item()
+        # id_loss = 1. - id_loss(traj[-1], traj_oc[-1]).detach().cpu().numpy()
+        print(f'{i} clip loss: {clip_loss:.4f}, lpips score: {lpips_score:.4f}, total time: {time.time() - t_s:.4f} s')

@@ -128,3 +128,10 @@ dmypy.json
 # Pyre type checker
 .pyre/
 data/
+**/angry/**
+**/curly/**
+**/old/**
+**/sad/**
+**/smile/**
+./original/
+data_celeba_hq_1024/
