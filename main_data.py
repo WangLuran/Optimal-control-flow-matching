@@ -125,10 +125,10 @@ def main(argv):
   prompt = text_prompts[0]
   output_dir = output_dirs[0]
 
-  run_lib_flowgrad_oc.flowgrad_edit_batch(FLAGS.config, model_path, image_paths, prompt, output_dir)
+  metrics = run_lib_flowgrad_oc.flowgrad_edit_batch(FLAGS.config, model_path, image_paths, prompt, output_dir)
   # run_lib_flowgrad_oc.flowgrad_edit_single(FLAGS.config, text_prompt, alpha, model_path, image_path)
 
-
+  print(metrics)
 
 
 if __name__ == "__main__":

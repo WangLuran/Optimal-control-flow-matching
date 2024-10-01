@@ -579,6 +579,9 @@ def flowgrad_edit_batch(config, model_path, image_paths, text_prompt, output_dir
   model_fn = mutils.get_model_fn(score_model, train=False)
   
   N = 100
+  batch_size = 1
+
+  metrics = {}
 
   for img_path in tqdm(image_paths):
       target_dir = f'examples/{output_dir}'
@@ -589,7 +592,6 @@ def flowgrad_edit_batch(config, model_path, image_paths, text_prompt, output_dir
 
       # Load the image to edit
       image = get_img(img_path)  
-      batch_size = 1
 
       original_img = image.to(config.device)
       clip_loss = clip_semantic_loss(text_prompt, original_img, config.device, alpha=0.7, inverse_scaler=inverse_scaler)  
@@ -620,3 +622,11 @@ def flowgrad_edit_batch(config, model_path, image_paths, text_prompt, output_dir
         lpips_score = lpips_f(traj_oc[-1], traj[-1]).item()
         # id_loss = 1. - id_loss(traj[-1], traj_oc[-1]).detach().cpu().numpy()
         print(f'clip loss: {clip_loss:.4f}, lpips score: {lpips_score:.4f}, total time: {time.time() - t_s:.4f} s')
+
+        metrics[opt_img_path] = {
+          'clip_loss': clip_loss,
+          'lpips_score': lpips_score,
+        }
+
+  torch.save(metrics, f'{target_dir}/metrics.pt')
+  return metrics
