@@ -189,8 +189,8 @@ def dflow_optimization_lbfgs(z0, dynamic, N, L_N, max_iter, max_step=5, lr=1, ve
 
     return r1_opt, r0_opt
 
-def flowgrad_optimization_oc_d(z0, u_ind, dynamic, generate_traj, N, L_N,  number_of_iterations, alpha,
-                                  beta):
+def flowgrad_optimization_oc_d(z0, u_ind, dynamic, generate_traj, L_N, N=100, number_of_iterations=15, lr=2.5,
+                                  weight_decay=0.995):
     device = z0.device
     shape = z0.shape
     batch_size = shape[0]
@@ -255,7 +255,7 @@ def flowgrad_optimization_oc_d(z0, u_ind, dynamic, generate_traj, N, L_N,  numbe
         # print('BP time:', time.time() - t_s)
 
         for ind in u.keys():
-          u[ind] = u[ind]*beta + batch_size*alpha*u[ind].grad
+          u[ind] = u[ind]*weight_decay + batch_size*lr*u[ind].grad
 
     return opt_u
 
@@ -469,8 +469,8 @@ def flowgrad_edit(config, text_prompts, alpha, model_path, data_loader):
       # Edit according to text prompt
       print('optimization starts')
       u_ind = [i for i in range(100)]
-      u_opt = flowgrad_optimization_oc_d(latent, u_ind, model_fn, generate_traj, N=100, L_N=clip_loss.L_N,  number_of_iterations=15, alpha=2.5,#first 3, second 2.75, third 2.5
-                                  beta=0.995) #first is 0.990, second is 0.9995, third is 0.995; first is 0.9925 third 0.995 last is 0.990
+      u_opt = flowgrad_optimization_oc_d(latent, u_ind, model_fn, generate_traj, N=100, L_N=clip_loss.L_N,  number_of_iterations=15, lr=2.5,#first 3, second 2.75, third 2.5
+                                  weight_decay=0.995) #first is 0.990, second is 0.9995, third is 0.995; first is 0.9925 third 0.995 last is 0.990
       # opt_u = flowgrad_optimization(latent, u_ind, model_fn, generate_traj, N=100, L_N=clip_loss.L_N, u_init=None,  number_of_iterations=10, straightness_threshold=5e-3, lr=10.0) 
       # traj_gd = generate_traj(model_fn, z0=latent, u=opt_u, N=100)
 
@@ -579,10 +579,6 @@ def flowgrad_edit_batch(config, model_path, image_paths, text_prompt, output_dir
   model_fn = mutils.get_model_fn(score_model, train=False)
   
   N = 100
-  lr = 10
-  beta = 1
-  max_step = 10
-  alpha = 0.7
 
   for img_path in tqdm(image_paths):
       target_dir = f'examples/{FLAGS.method}/{output_dir}'
@@ -596,7 +592,7 @@ def flowgrad_edit_batch(config, model_path, image_paths, text_prompt, output_dir
       batch_size = 1
 
       original_img = image.to(config.device)
-      clip_loss = clip_semantic_loss(text_prompt, original_img, config.device, alpha=alpha, inverse_scaler=inverse_scaler)  
+      clip_loss = clip_semantic_loss(text_prompt, original_img, config.device, alpha=0.7, inverse_scaler=inverse_scaler)  
       
       t_s = time.time()
       latent = embed_to_latent(model_fn, scaler(original_img))
@@ -605,8 +601,9 @@ def flowgrad_edit_batch(config, model_path, image_paths, text_prompt, output_dir
       # Edit according to text prompt
       print(f'optimization starts: {img_path} -> {opt_img_path}')
       u_ind = [_ for _ in range(N)]
-      u_opt = flowgrad_optimization_oc_d(latent, u_ind, model_fn, generate_traj, N=N, L_N=clip_loss.L_N,  number_of_iterations=max_step, alpha=lr,#first 3, second 2.75, third 2.5
-                                  beta=beta) #first is 0.990, second is 0.9995, third is 0.995; first is 0.9925 third 0.995 last is 0.990
+      u_opt = flowgrad_optimization_oc_d(
+        latent, u_ind, model_fn, generate_traj, L_N=clip_loss.L_N, N=N) #, number_of_iterations=max_step, lr=lr,
+        # weight_decay=beta) #first is 0.990, second is 0.9995, third is 0.995; first is 0.9925 third 0.995 last is 0.990
 
       traj_oc = generate_traj(model_fn, z0=latent, u=u_opt, N=N)
 

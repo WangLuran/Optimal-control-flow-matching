@@ -121,8 +121,8 @@ def main(argv):
 
   if FLAGS.method == 'flowgrad':
      opt_method = run_lib_flowgrad_oc.flowgrad_edit_batch
-  # elif FLAGS.method == 'ocfm':
-    #  opt_method = run_lib_flowgrad_oc.
+  elif FLAGS.method == 'ocfm':
+     opt_method = run_lib_flowgrad_oc.
 
 
   output_dirs = ['old', 'sad', 'smile', 'angry', 'curly']
