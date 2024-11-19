@@ -114,7 +114,7 @@ def flowgrad_edit_batch(config, model_path, image_paths, text_prompt, output_dir
 
     # Edit according to text prompt
     u_ind = [i for i in range(100)]
-    opt_u = flowgrad_optimization(latent, u_ind, model_fn, generate_traj, N=100, L_N=clip_loss.L_N, u_init=None,  number_of_iterations=10, straightness_threshold=5e-3, lr=10.0) 
+    opt_u = flowgrad_optimization(latent, u_ind, model_fn, generate_traj, N=100, L_N=clip_loss.L_N, u_init=None,  number_of_iterations=10, straightness_threshold=1e-3, lr=10.0) 
 
     traj_opt = generate_traj(model_fn, latent, u=opt_u, N=100)
     
