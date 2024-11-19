@@ -27,25 +27,33 @@ flags.DEFINE_string('method', 'flowgrad', '[flowgrad, ocfm]')
 flags.DEFINE_integer("batch_size", 1, "batch size")
 flags.DEFINE_integer("index", 0, "position of samples")
 text_prompts = ['A photo of an old face.','A photo of a sad face.','A photo of a smiling face.','A photo of an angry face.','A photo of a face with curly hair.']
-image_paths = ['examples/original/00004.jpg',
- 'examples/original/00008.jpg',
- 'examples/original/00021.jpg',
- 'examples/original/00037.jpg',
- 'examples/original/00039.jpg',
- 'examples/original/00070.jpg',
- 'examples/original/00072.jpg',
- 'examples/original/00078.jpg',
- 'examples/original/00097.jpg',
- 'examples/original/00098.jpg',
- 'examples/original/00103.jpg',
- 'examples/original/00105.jpg',
- 'examples/original/00107.jpg',
- 'examples/original/00117.jpg',
- 'examples/original/00133.jpg',
- 'examples/original/00134.jpg',
- 'examples/original/00182.jpg',
- 'examples/original/00185.jpg',
- 'examples/original/00186.jpg']
+#image_paths = ['examples/original/00004.jpg',
+# 'examples/original/00008.jpg',
+# 'examples/original/00021.jpg',
+# 'examples/original/00037.jpg',
+# 'examples/original/00039.jpg',
+# 'examples/original/00070.jpg',
+# 'examples/original/00072.jpg',
+# 'examples/original/00078.jpg',
+# 'examples/original/00097.jpg',
+# 'examples/original/00098.jpg',
+# 'examples/original/00103.jpg',
+# 'examples/original/00105.jpg',
+# 'examples/original/00107.jpg',
+# 'examples/original/00117.jpg',
+# 'examples/original/00133.jpg',
+# 'examples/original/00134.jpg',
+# 'examples/original/00182.jpg',
+# 'examples/original/00185.jpg',
+# 'examples/original/00186.jpg']
+
+import glob
+
+all_image_paths = sorted(glob.glob('data/data_celeba_hq_1024/*.jpg'))
+print(len(all_image_paths))
+print(all_image_paths[:10])
+image_paths = all_image_paths[:10]
+
 alpha = 0.7
 lr = 1
 model_path = './checkpoint_10.pth'
@@ -122,8 +130,8 @@ def main(argv):
 
   output_dirs = ['ocfm/old', 'ocfm/sad', 'ocfm/smile', 'ocfm/angry', 'ocfm/curly']
 
-  prompt = text_prompts[0]
-  output_dir = output_dirs[0]
+  prompt = text_prompts[4]
+  output_dir = output_dirs[4]
 
   metrics = run_lib_flowgrad_oc.flowgrad_edit_batch(FLAGS.config, model_path, image_paths, prompt, output_dir)
   # run_lib_flowgrad_oc.flowgrad_edit_single(FLAGS.config, text_prompt, alpha, model_path, image_path)

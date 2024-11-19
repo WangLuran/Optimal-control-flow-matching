@@ -49,8 +49,8 @@ def main(argv):
 
   output_dirs = ['flowgrad/old', 'flowgrad/sad', 'flowgrad/smile', 'flowgrad/angry', 'flowgrad/curly']
 
-  prompt = text_prompts[0]
-  output_dir = output_dirs[0]
+  prompt = text_prompts[4]
+  output_dir = output_dirs[4]
 
   metrics = run_lib_flowgrad.flowgrad_edit_batch(
        FLAGS.config, 

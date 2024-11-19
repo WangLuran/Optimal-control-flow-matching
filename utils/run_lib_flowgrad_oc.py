@@ -207,6 +207,7 @@ def flowgrad_optimization_oc_d(z0, u_ind, dynamic, generate_traj, L_N, N=100, nu
         ### get the forward simulation result and the non-uniform discretization trajectory
         ### non_uniform_set: indices and interval length (t_{j+1} - t_j)
         z_traj, non_uniform_set = generate_traj(dynamic, z0, u=u, N=N, straightness_threshold=0)
+        # z_traj = generate_traj(dynamic, z0, u=u, N=N, straightness_threshold=None)
         # print(non_uniform_set)
 
         t_s = time.time()
