@@ -189,7 +189,7 @@ def dflow_optimization_lbfgs(z0, dynamic, N, L_N, max_iter, max_step=5, lr=1, ve
 
     return r1_opt, r0_opt
 
-def flowgrad_optimization_oc_d(z0, u_ind, dynamic, generate_traj, L_N, N=100, number_of_iterations=15, lr=2.5,
+def flowgrad_optimization_oc_d(z0, u_ind, dynamic, generate_traj, L_N, N=100, number_of_iterations=15, straightness_threshold=1e-3, lr=2.5,
                                   weight_decay=0.995):
     device = z0.device
     shape = z0.shape
@@ -206,8 +206,10 @@ def flowgrad_optimization_oc_d(z0, u_ind, dynamic, generate_traj, L_N, N=100, nu
     for i in range(number_of_iterations):
         ### get the forward simulation result and the non-uniform discretization trajectory
         ### non_uniform_set: indices and interval length (t_{j+1} - t_j)
-        z_traj, non_uniform_set = generate_traj(dynamic, z0, u=u, N=N, straightness_threshold=0)
-        # z_traj = generate_traj(dynamic, z0, u=u, N=N, straightness_threshold=None)
+        if straightness_threshold is not None:
+          z_traj, non_uniform_set = generate_traj(dynamic, z0, u=u, N=N, straightness_threshold=straightness_threshold)
+        else:
+          z_traj = generate_traj(dynamic, z0, u=u, N=N, straightness_threshold=straightness_threshold)
         # print(non_uniform_set)
 
         t_s = time.time()
@@ -234,18 +236,23 @@ def flowgrad_optimization_oc_d(z0, u_ind, dynamic, generate_traj, L_N, N=100, nu
         g_old = None
         d = []
         for j in range(N-1, -1, -1):
-            # if j in non_uniform_set['indices']:
-            #   assert j in u_ind
-            # else:
-            #   continue
+            if straightness_threshold is not None:
+              if j in non_uniform_set['indices']:
+                assert j in u_ind
+              else:
+                continue
 
             ### compute lambda: correct vjp version
             inputs = torch.zeros(lam.shape, device=device)
             inputs.data = z_traj[j].to(device).detach().clone()
             inputs.requires_grad = True
             t = (torch.ones((batch_size, )) * j / N * (1.-eps) + eps) * 999
-            func = lambda x: (x.contiguous().reshape(shape) + u[j].detach().clone() + \
-                              dynamic(x.contiguous().reshape(shape) + u[j].detach().clone(), t.detach().clone()) * non_uniform_set['length'][j] / N).view(-1)
+            if straightness_threshold is not None:
+              func = lambda x: (x.contiguous().reshape(shape) + u[j].detach().clone() + \
+                                dynamic(x.contiguous().reshape(shape) + u[j].detach().clone(), t.detach().clone()) * non_uniform_set['length'][j] / N).view(-1)
+            else:
+              func = lambda x: (x.contiguous().reshape(shape) + u[j].detach().clone() + \
+                                dynamic(x.contiguous().reshape(shape) + u[j].detach().clone(), t.detach().clone()) / N).view(-1)
             output, vjp = torch.autograd.functional.vjp(func, inputs=inputs.view(-1), v=lam.detach().clone().reshape(-1))
             lam = vjp.detach().clone().contiguous().reshape(shape)
             
@@ -254,7 +261,19 @@ def flowgrad_optimization_oc_d(z0, u_ind, dynamic, generate_traj, L_N, N=100, nu
             if j == 0: break
         
         # print('BP time:', time.time() - t_s)
-
+        ### Re-assignment  
+        if straightness_threshold is not None:
+          for j in range(len(non_uniform_set['indices'])):
+              start = non_uniform_set['indices'][j]
+              try:
+                end = non_uniform_set['indices'][j+1]
+              except:
+                end = N
+  
+              for k in range(start, end):
+                if k in u_ind:
+                  u[k].grad = u[start].grad.detach().clone() 
+        
         for ind in u.keys():
           u[ind] = u[ind]*weight_decay + batch_size*lr*u[ind].grad
 
@@ -491,80 +510,9 @@ def flowgrad_edit(config, text_prompts, alpha, model_path, data_loader):
   return sum(clip_scores)/len(clip_scores), sum(lpips_scores)/len(lpips_scores), sum(id_scores)/len(id_scores)#,sum(clip_scores_gd)/len(clip_scores_gd), sum(lpips_scores_gd)/len(lpips_scores_gd),sum(id_scores_gd)/len(id_scores_gd)
 
 
-def flowgrad_edit_single(config, text_prompt, alpha, model_path, image_path, opt_img_path=None):   
-  
-  
-  
-  # log_folder = os.path.join(output_folder, 'figs')
-  # print('Images will be saved to:', log_folder)
-  # if not os.path.exists(log_folder): os.makedirs(log_folder)
-  # save_img(image, path=os.path.join(log_folder, 'original.png'))
-
-  
-  
-
-
-
-  
-  # save_img(inverse_scaler(traj[-1]), path=os.path.join(log_folder, 'recover.png'))
-  
-  
-  # opt_u = flowgrad_optimization(latent, u_ind, model_fn, generate_traj, N=100, L_N=clip_loss.L_N, u_init=None,  number_of_iterations=10, straightness_threshold=5e-3, lr=10.0) 
-  # traj_gd = generate_traj(model_fn, z0=latent, u=opt_u, N=100)
-
-
-  
-
-
-#   print('OC results:')
-# #   print(clip_loss_1.L_N(p_generated))
-#   print(clip_loss_1.L_N(traj_oc[-1]))
-#   print(lpips_f(traj_oc[-1], traj[-1]))
-#   print('GD results:')
-#   print(clip_loss_1.L_N(traj_gd[-1]))
-#   print(lpips_f(traj_gd[-1], traj[-1]))
-# #   print('Original:')
-# #   print(clip_loss_1.L_N(traj[-1]))
-# #   print(lpips_f(traj[-1], traj[-1]))
-#   print('Total time:', time.time() - t_s)
-#   save_img(inverse_scaler(traj_oc[-1]), path=os.path.join(log_folder, 'optimized_oc_d.png'))
-#   print('Finished Editting; images saved.')
-#   # save_img(inverse_scaler(lambda_), path=os.path.join(log_folder, 'optimized_feature.png'))
-#   # print('Finished Editting; images saved.')
-#   save_img(inverse_scaler(traj_gd[-1]), path=os.path.join(log_folder, 'optimized_gd.png'))
-#   print('Finished Editting; images saved.')
-    # file_path = 'output/results.json'
-
-    # with open(file_path, 'r') as json_file:
-    #   data = json.load(json_file)
-
-    # if "numbers" in data:
-    #   data["numbers"] += batch_size  # Adds new numbers to the existing list
-    # else:
-    #   # If the key does not exist, create it
-    #   data["numbers"] = batch_size
-
-    # if text_prompt in data:
-    #   data[text_prompt]['clip_score'] = data[text_prompt]['clip_score']*(data["numbers"]-batch_size) + clip_loss_1.L_N(traj_oc[-1]).detach().cpu().numpy().sum()*batch_size # Adds new numbers to the existing list
-    #   data[text_prompt]['clip_score'] /= data["numbers"]
-    #   data[text_prompt]['lpips'] = data[text_prompt]['lpips']*(data["numbers"]-batch_size) + lpips_f(traj_oc[-1], traj[-1]).detach().cpu().numpy().mean()
-    #   data[text_prompt]['lpips'] /= data["numbers"]
-    # else:
-    #   # If the key does not exist, create it
-    #   data[text_prompt] = {'clip_score':float(clip_loss_1.L_N(traj_oc[-1]).detach().cpu().numpy().sum()), 'lpips':lpips_f(traj_oc[-1], traj[-1]).detach().cpu().numpy().mean()}
-      # data[text_prompt]['clip_score'] = clip_loss_1.L_N(traj_oc[-1]).detach().cpu().numpy().sum()
-      # data[text_prompt]['lpips'] = lpips_f(traj_oc[-1], traj[-1]).detach().cpu().numpy().mean()
-
-    # with open(file_path, 'w') as json_file:
-    #   json.dump(data, json_file, indent=4)
-
-    # print('oc similarity', id_loss(traj[-1], traj_oc[-1]))
-    # print('gd similarity', id_loss(traj[-1], traj_gd[-1]))
-  pass
-
-
 def flowgrad_edit_batch(config, model_path, image_paths, text_prompt, output_dir):
-   
+  alpha = 0.7
+  
   # Create data normalizer and its inverse
   scaler = datasets.get_data_scaler(config)
   inverse_scaler = datasets.get_data_inverse_scaler(config)
@@ -595,7 +543,7 @@ def flowgrad_edit_batch(config, model_path, image_paths, text_prompt, output_dir
       image = get_img(img_path)  
 
       original_img = image.to(config.device)
-      clip_loss = clip_semantic_loss(text_prompt, original_img, config.device, alpha=0.7, inverse_scaler=inverse_scaler)  
+      clip_loss = clip_semantic_loss(text_prompt, original_img, config.device, alpha=alpha, inverse_scaler=inverse_scaler)  
       
       t_s = time.time()
       latent = embed_to_latent(model_fn, scaler(original_img))
@@ -605,11 +553,8 @@ def flowgrad_edit_batch(config, model_path, image_paths, text_prompt, output_dir
       print(f'optimization starts: {img_path} -> {opt_img_path}')
       u_ind = [_ for _ in range(N)]
       u_opt = flowgrad_optimization_oc_d(
-        latent, u_ind, model_fn, generate_traj, L_N=clip_loss.L_N, N=N) #, number_of_iterations=max_step, lr=lr,
-        # weight_decay=beta) #first is 0.990, second is 0.9995, third is 0.995; first is 0.9925 third 0.995 last is 0.990
-
-      # opt_u = flowgrad_optimization(latent, u_ind, model_fn, generate_traj, N=N, L_N=clip_loss.L_N, u_init=None, number_of_iterations=10, straightness_threshold=1e-3, lr=10.0) 
-      # traj_gd = generate_traj(model_fn, z0=latent, u=opt_u, N=100)
+        latent, u_ind, model_fn, generate_traj, L_N=clip_loss.L_N, N=N, number_of_iterations=10, lr=2.5, straightness_threshold=1e-3) 
+        #first is 0.990, second is 0.9995, third is 0.995; first is 0.9925 third 0.995 last is 0.990
 
       traj_oc = generate_traj(model_fn, z0=latent, u=u_opt, N=N)
 
