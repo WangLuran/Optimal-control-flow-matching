@@ -608,6 +608,9 @@ def flowgrad_edit_batch(config, model_path, image_paths, text_prompt, output_dir
         latent, u_ind, model_fn, generate_traj, L_N=clip_loss.L_N, N=N) #, number_of_iterations=max_step, lr=lr,
         # weight_decay=beta) #first is 0.990, second is 0.9995, third is 0.995; first is 0.9925 third 0.995 last is 0.990
 
+      # opt_u = flowgrad_optimization(latent, u_ind, model_fn, generate_traj, N=N, L_N=clip_loss.L_N, u_init=None, number_of_iterations=10, straightness_threshold=1e-3, lr=10.0) 
+      # traj_gd = generate_traj(model_fn, z0=latent, u=opt_u, N=100)
+
       traj_oc = generate_traj(model_fn, z0=latent, u=u_opt, N=N)
 
       if opt_img_path is not None:
