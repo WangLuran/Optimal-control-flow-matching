@@ -109,14 +109,14 @@ def flowgrad_edit_batch(config, model_path, image_paths, text_prompt, output_dir
 
     t_s = time.time()
     latent = embed_to_latent(model_fn, scaler(original_img))
-    traj = generate_traj(model_fn, latent, N=100)
+    traj = generate_traj(model_fn, latent, N=N)
     print('Finished getting latent code and reconstruction; image saved.')
 
     # Edit according to text prompt
-    u_ind = [i for i in range(100)]
-    opt_u = flowgrad_optimization(latent, u_ind, model_fn, generate_traj, N=100, L_N=clip_loss.L_N, u_init=None,  number_of_iterations=10, straightness_threshold=1e-3, lr=10.0) 
+    u_ind = [i for i in range(N)]
+    opt_u = flowgrad_optimization(latent, u_ind, model_fn, generate_traj, N=N, L_N=clip_loss.L_N, u_init=None,  number_of_iterations=10, straightness_threshold=1e-3, lr=10.0) 
 
-    traj_opt = generate_traj(model_fn, latent, u=opt_u, N=100)
+    traj_opt = generate_traj(model_fn, latent, u=opt_u, N=N)
     
     if opt_img_path is not None:
       save_img(inverse_scaler(traj_opt[-1]), path=opt_img_path)
