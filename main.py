@@ -20,25 +20,32 @@ flags.DEFINE_string("output_folder", "output", "The folder name for storing outp
 
 
 text_prompts = ['A photo of an old face.','A photo of a sad face.','A photo of a smiling face.','A photo of an angry face.','A photo of a face with curly hair.']
-image_paths = ['examples/original/00004.jpg',
- 'examples/original/00008.jpg',
- 'examples/original/00021.jpg',
- 'examples/original/00037.jpg',
- 'examples/original/00039.jpg',
- 'examples/original/00070.jpg',
- 'examples/original/00072.jpg',
- 'examples/original/00078.jpg',
- 'examples/original/00097.jpg',
- 'examples/original/00098.jpg',
- 'examples/original/00103.jpg',
- 'examples/original/00105.jpg',
- 'examples/original/00107.jpg',
- 'examples/original/00117.jpg',
- 'examples/original/00133.jpg',
- 'examples/original/00134.jpg',
- 'examples/original/00182.jpg',
- 'examples/original/00185.jpg',
- 'examples/original/00186.jpg']
+# image_paths = ['examples/original/00004.jpg',
+#  'examples/original/00008.jpg',
+#  'examples/original/00021.jpg',
+#  'examples/original/00037.jpg',
+#  'examples/original/00039.jpg',
+#  'examples/original/00070.jpg',
+#  'examples/original/00072.jpg',
+#  'examples/original/00078.jpg',
+#  'examples/original/00097.jpg',
+#  'examples/original/00098.jpg',
+#  'examples/original/00103.jpg',
+#  'examples/original/00105.jpg',
+#  'examples/original/00107.jpg',
+#  'examples/original/00117.jpg',
+#  'examples/original/00133.jpg',
+#  'examples/original/00134.jpg',
+#  'examples/original/00182.jpg',
+#  'examples/original/00185.jpg',
+#  'examples/original/00186.jpg']
+import glob
+
+all_image_paths = sorted(glob.glob('data/data_celeba_hq_1024/*.jpg'))
+print(len(all_image_paths))
+print(all_image_paths[:10])
+image_paths = all_image_paths[:10]
+
 model_path = './checkpoint_10.pth'
 
 def main(argv):
