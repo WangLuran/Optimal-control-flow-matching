@@ -191,7 +191,7 @@ class clip_semantic_loss():
 
         return self.alpha * concept_loss.mean() + (1.-self.alpha) * sim.sum()
 
-def flowgrad_optimization(z0, u_ind, dynamic, generate_traj, N=100, L_N=None, u_init=None,  number_of_iterations=10, straightness_threshold=5e-3, lr=1.0):
+def flowgrad_optimization(z0, u_ind, dynamic, generate_traj, N=100, L_N=None, u_init=None,  number_of_iterations=10, straightness_threshold=1e-3, lr=1.0):
     device = z0.device
     shape = z0.shape
     batch_size = shape[0]
