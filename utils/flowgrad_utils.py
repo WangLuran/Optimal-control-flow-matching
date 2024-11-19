@@ -222,7 +222,10 @@ def flowgrad_optimization(z0, u_ind, dynamic, generate_traj, N=100, L_N=None, u_
 
         ### get the forward simulation result and the non-uniform discretization trajectory
         ### non_uniform_set: indices and interval length (t_{j+1} - t_j)
-        z_traj, non_uniform_set = generate_traj(dynamic, z0, u=u, N=N, straightness_threshold=straightness_threshold)
+        if straightness_threshold is not None:
+          z_traj, non_uniform_set = generate_traj(dynamic, z0, u=u, N=N, straightness_threshold=straightness_threshold)
+        else:
+          z_traj = generate_traj(dynamic, z0, u=u, N=N, straightness_threshold=straightness_threshold)
         # print(non_uniform_set)
 
         t_s = time.time()
@@ -251,18 +254,23 @@ def flowgrad_optimization(z0, u_ind, dynamic, generate_traj, N=100, L_N=None, u_
         g_old = None
         d = []
         for j in range(N-1, -1, -1):
-            if j in non_uniform_set['indices']:
-              assert j in u_ind
-            else:
-              continue
+            if straightness_threshold is not None:
+              if j in non_uniform_set['indices']:
+                assert j in u_ind
+              else:
+                continue
 
             ### compute lambda: correct vjp version
             inputs = torch.zeros(lam.shape, device=device)
             inputs.data = z_traj[j].to(device).detach().clone()
             inputs.requires_grad = True
             t = (torch.ones((batch_size, )) * j / N * (1.-eps) + eps) * 999
-            func = lambda x: (x.contiguous().reshape(shape) + u[j].detach().clone() + \
-                              dynamic(x.contiguous().reshape(shape) + u[j].detach().clone(), t.detach().clone()) * non_uniform_set['length'][j] / N).view(-1)
+            if straightness_threshold is not None:
+              func = lambda x: (x.contiguous().reshape(shape) + u[j].detach().clone() + \
+                                dynamic(x.contiguous().reshape(shape) + u[j].detach().clone(), t.detach().clone()) * non_uniform_set['length'][j] / N).view(-1)
+            else:
+              func = lambda x: (x.contiguous().reshape(shape) + u[j].detach().clone() + \
+                                dynamic(x.contiguous().reshape(shape) + u[j].detach().clone(), t.detach().clone()) / N).view(-1)
             output, vjp = torch.autograd.functional.vjp(func, inputs=inputs.view(-1), v=lam.detach().clone().reshape(-1))
             lam = vjp.detach().clone().contiguous().reshape(shape)
             
@@ -272,16 +280,17 @@ def flowgrad_optimization(z0, u_ind, dynamic, generate_traj, N=100, L_N=None, u_
         
         # print('BP time:', time.time() - t_s)
         ### Re-assignment  
-        for j in range(len(non_uniform_set['indices'])):
-            start = non_uniform_set['indices'][j]
-            try:
-              end = non_uniform_set['indices'][j+1]
-            except:
-              end = N
-
-            for k in range(start, end):
-              if k in u_ind:
-                u[k].grad = u[start].grad.detach().clone()    
+        if straightness_threshold is not None:
+          for j in range(len(non_uniform_set['indices'])):
+              start = non_uniform_set['indices'][j]
+              try:
+                end = non_uniform_set['indices'][j+1]
+              except:
+                end = N
+  
+              for k in range(start, end):
+                if k in u_ind:
+                  u[k].grad = u[start].grad.detach().clone()    
 
         u_optimizer.step()
 
